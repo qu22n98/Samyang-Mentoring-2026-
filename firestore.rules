@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 3. Validation Blueprints
+    function isValidMentee(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.department is string && data.department.size() <= 100 &&
+             data.creatorId == request.auth.uid &&
+             (data.get('avatar', '') is string) &&
+             (data.get('pledge', '') is string) &&
+             (data.get('mentorName', '') is string) &&
+             (data.get('mentorDept', '') is string);
+    }
+
+    function isValidActivity(data) {
+      return data.category in ['직무연관', '심리사회', 'Purpose/Global/Digital'] &&
+             data.content is string && data.content.size() <= 1000 &&
+             data.date is string &&
+             data.amountSpent is number &&
+             data.creatorId == request.auth.uid &&
+             data.likedBy is list;
+    }
+
+    function isValidComment(data) {
+      return data.text is string && data.text.size() <= 500 &&
+             data.authorId == request.auth.uid &&
+             data.author is string;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "qu22n98@gmail.com";
+    }
+
+    // 4. Collections
+    match /mentees/{menteeId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && isValidId(menteeId) && isValidMentee(incoming()) && incoming().createdAt == request.time;
+      allow update: if (isAdmin() || isOwner(existing().creatorId)) && isValidMentee(incoming()) &&
+                       incoming().creatorId == existing().creatorId &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin() || isOwner(existing().creatorId);
+
+      match /activities/{activityId} {
+        allow get: if true;
+        allow list: if true;
+        allow create: if isSignedIn() && isValidId(activityId) && isValidActivity(incoming()) && 
+                         incoming().createdAt == request.time &&
+                         exists(/databases/$(database)/documents/mentees/$(menteeId));
+        
+        allow update: if isSignedIn() && (
+          // Action: Edit content (Owner or Admin)
+          ((isAdmin() || isOwner(existing().creatorId)) && isValidActivity(incoming()) &&
+           incoming().creatorId == existing().creatorId &&
+           incoming().createdAt == existing().createdAt &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['category', 'content', 'image', 'date', 'amountSpent', 'checklistItemId'])) ||
+          
+          // Action: Like (Any signed in user)
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likedBy']) &&
+           (incoming().likedBy.size() == existing().likedBy.size() + 1 ? incoming().likedBy.hasAll([request.auth.uid]) : (incoming().likedBy.size() == existing().likedBy.size() - 1 ? true : false)))
+        );
+        allow delete: if isAdmin() || isOwner(existing().creatorId);
+
+        match /comments/{commentId} {
+          allow get, list: if true;
+          allow create: if isSignedIn() && isValidId(commentId) && isValidComment(incoming()) && (incoming().date == request.time || incoming().date == null);
+          allow update: if (isAdmin() || isOwner(existing().authorId)) && isValidComment(incoming()) && incoming().authorId == existing().authorId;
+          // Allow comment deletion if user is the comment author OR user owns the parent activity
+          allow delete: if isAdmin() || isOwner(existing().authorId) || isOwner(get(/databases/$(database)/documents/mentees/$(menteeId)/activities/$(activityId)).data.creatorId);
+        }
+      }
+    }
+
+    // Collection Group Rules for Dashboard
+    match /{path=**}/activities/{activityId} {
+      allow read: if true;
+    }
+    match /{path=**}/comments/{commentId} {
+      allow read: if true;
+    }
+  }
+}

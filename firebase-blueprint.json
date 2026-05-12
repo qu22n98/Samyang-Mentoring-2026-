@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "Mentee": {
+      "title": "Mentee",
+      "description": "Mentee profile information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "department": { "type": "string" },
+        "mentorName": { "type": "string" },
+        "mentorDept": { "type": "string" },
+        "avatar": { "type": "string" },
+        "pledge": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "aiSummary": { "type": "string" },
+        "aiInsights": { "type": "string" },
+        "aiRecommendations": { "type": "array", "items": { "type": "string" } },
+        "aiFeedback": { "type": "string" },
+        "aiKeywords": { "type": "array", "items": { "type": "string" } },
+        "aiCharacterName": { "type": "string" }
+      },
+      "required": ["name", "department", "creatorId"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "A mentoring activity logged by a mentee or mentor",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "enum": ["직무연관", "심리사회", "Purpose/Global/Digital"] },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "amountSpent": { "type": "number" },
+        "likedBy": { "type": "array", "items": { "type": "string" } },
+        "checklistItemId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["category", "content", "date", "creatorId"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on an activity",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" }
+      },
+      "required": ["text", "date", "authorId", "authorName"]
+    }
+  },
+  "firestore": {
+    "mentees": {
+      "schema": "Mentee",
+      "description": "Collection of mentee profiles"
+    },
+    "mentees/{menteeId}/activities": {
+      "schema": "Activity",
+      "description": "Activities for a specific mentee"
+    },
+    "mentees/{menteeId}/activities/{activityId}/comments": {
+      "schema": "Comment",
+      "description": "Comments on a specific activity"
+    }
+  }
+}
